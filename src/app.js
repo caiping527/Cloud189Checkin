@@ -15,6 +15,9 @@ sdkLogger.configure({
   isDebugEnabled: process.env.CLOUD189_VERBOSE === "1",
 });
 
+// 记录本次运行中签到失败的账号（用于"仅失败时推送微信提醒"）
+const failedAccounts = [];
+
 // 个人任务签到
 const doUserTask = async (cloudClient, logger) => {
   const result = await cloudClient.userSign()
@@ -49,6 +52,14 @@ const run = async (userName, password, userSizeInfoMap, logger) => {
         logger.error("请求超时");
         throw e;
       }
+      // 非网络超时类错误（token 失效 / 需要设备校验 / 密码错误等），
+      // 说明需要人工登录激活，记入失败提醒
+      failedAccounts.push({
+        userName,
+        reason: e.response
+          ? `HTTP ${e.response.statusCode}: ${e.response.body}`
+          : e.message || "未知错误",
+      });
     } finally {
       logger.log(
         `执行完毕, 耗时 ${((Date.now() - before) / 1000).toFixed(2)} 秒`
@@ -113,6 +124,16 @@ async function main() {
     const events = recording.replay();
     const content = events.map((e) => `${e.data.join("")}`).join("  \n");
     push("天翼云盘自动签到任务", logs + content);
+    // 签到失败时，通过企业微信应用消息单独推送提醒（签到成功时不打扰）
+    if (failedAccounts.length > 0) {
+      const desp = failedAccounts
+        .map((a) => `账号：${mask(a.userName, 3, 7)}\n原因：${a.reason}`)
+        .join("\n\n");
+      await push.pushWecomApp(
+        "⚠️ 天翼云盘签到失败，请手动激活",
+        `${desp}\n\n请打开“天翼云盘 App”手动登录一次（完成验证码/设备校验），登录后自动签到会继续生效。`
+      );
+    }
     recording.erase();
     cleanLogs();
   }
