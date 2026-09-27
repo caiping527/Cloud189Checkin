@@ -3,6 +3,7 @@ const superagent = require("superagent");
 const serverChan = require("./serverChan");
 const telegramBot = require("./telegramBot");
 const wecomBot = require("./wecomBot");
+const wecomApp = require("./wecomApp");
 const wxpush = require("./wxPusher");
 const pushPlus = require("./pushPlus");
 const wpush = require("./wpush");
@@ -215,6 +216,77 @@ const pushShowDoc = (title, desp) => {
     });
 };
 
+// ===== 企业微信自建应用消息推送（签到失败提醒专用）=====
+// access_token 缓存，避免每次推送都重新获取
+let wecomAppToken = "";
+let wecomAppTokenExpireAt = 0;
+
+const getWecomAppToken = async () => {
+  // 缓存有效期内直接复用
+  if (wecomAppToken && Date.now() < wecomAppTokenExpireAt) {
+    return wecomAppToken;
+  }
+  if (!(wecomApp.corpid && wecomApp.secret)) {
+    return "";
+  }
+  const res = await superagent
+    .get("https://qyapi.weixin.qq.com/cgi-bin/gettoken")
+    .query({ corpid: wecomApp.corpid, corpsecret: wecomApp.secret })
+    .timeout({ response: 15000 });
+  const body = res.body || {};
+  if (body.errcode !== 0 || !body.access_token) {
+    logger.error(`获取企业微信access_token失败:${JSON.stringify(body)}`);
+    return "";
+  }
+  wecomAppToken = body.access_token;
+  // 提前 5 分钟过期，保证 token 一定有效
+  wecomAppTokenExpireAt =
+    Date.now() + (Number(body.expires_in || 7200) - 300) * 1000;
+  return wecomAppToken;
+};
+
+const pushWecomApp = async (title, desp) => {
+  if (!(wecomApp.corpid && wecomApp.secret && wecomApp.agentid)) {
+    logger.error(
+      "企业微信应用消息未配置 WECOM_APP_CORPID / WECOM_APP_SECRET / WECOM_APP_AGENTID，跳过推送"
+    );
+    return false;
+  }
+  try {
+    const accessToken = await getWecomAppToken();
+    if (!accessToken) {
+      return false;
+    }
+    const data = {
+      touser: wecomApp.touser || "@all",
+      msgtype: "text",
+      agentid: Number(wecomApp.agentid),
+      text: {
+        content: `${title}\n\n${desp}`,
+      },
+      safe: 0,
+    };
+    const res = await superagent
+      .post(
+        `https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token=${accessToken}`
+      )
+      .send(data)
+      .timeout({ response: 15000 });
+    const body = res.body || {};
+    if (body.errcode === 0) {
+      logger.info("企业微信应用消息推送成功");
+      return true;
+    }
+    logger.error(`企业微信应用消息推送失败:${JSON.stringify(body)}`);
+    return false;
+  } catch (err) {
+    logger.error(
+      `企业微信应用消息推送失败:${JSON.stringify(err.message || err)}`
+    );
+    return false;
+  }
+};
+
 const push = (title, desp) => {
   pushServerChan(title, desp);
   pushTelegramBot(title, desp);
@@ -227,3 +299,4 @@ const push = (title, desp) => {
 };
 
 module.exports = push;
+module.exports.pushWecomApp = pushWecomApp;
