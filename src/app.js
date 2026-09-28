@@ -10,21 +10,17 @@ const { mask, delay } = require("./utils");
 const push = require("./push");
 const { log4js, cleanLogs, catLogs } = require("./logger");
 const tokenDir = ".token";
-
 sdkLogger.configure({
   isDebugEnabled: process.env.CLOUD189_VERBOSE === "1",
 });
-
 // 记录本次运行中签到失败的账号（用于"仅失败时推送微信提醒"）
 const failedAccounts = [];
-
 // 个人任务签到
 const doUserTask = async (cloudClient, logger) => {
   const result = await cloudClient.userSign()
   const netdiskBonus = result.isSign? 0: result.netdiskBonus
   logger.info(`个人签到任务: 获得 ${netdiskBonus}M 空间`);
 };
-
 const run = async (userName, password, userSizeInfoMap, logger) => {
   if (userName && password) {
     const before = Date.now();
@@ -67,7 +63,6 @@ const run = async (userName, password, userSizeInfoMap, logger) => {
     }
   }
 };
-
 // 开始执行程序
 async function main() {
   //  用于统计实际容量变化
@@ -80,7 +75,6 @@ async function main() {
     logger.addContext("user", userNameInfo);
     await run(userName, password, userSizeInfoMap, logger);
   }
-
   //数据汇总
   for (const [
     userName,
@@ -113,7 +107,6 @@ async function main() {
     );
   }
 }
-
 (async () => {
   try {
     await main();
@@ -130,8 +123,8 @@ async function main() {
         .map((a) => `账号：${mask(a.userName, 3, 7)}\n原因：${a.reason}`)
         .join("\n\n");
       await push.pushWecomApp(
-        "⚠️ 天翼云盘签到失败，请手动激活",
-        `${desp}\n\n请打开“天翼云盘 App”手动登录一次（完成验证码/设备校验），登录后自动签到会继续生效。`
+        "⚠️ 天翼云盘签到失败（登录失效），请手动激活",
+        `${desp}\n\n【排查步骤】\n1. 先检查 Secrets 里 TY_ACCOUNTS 的账号密码是否为最新（最近改过天翼云密码必须同步更新，否则脚本一直用旧密码登录）\n2. 密码没问题仍失败 = 天翼云风控拦截，请打开“天翼云盘 App”手动登录签到补上\n3. 手动登录后次日自动签到可能恢复；恢复前，每天收到提醒就手动签一次`
       );
     }
     recording.erase();
