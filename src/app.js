@@ -48,13 +48,15 @@ const run = async (userName, password, userSizeInfoMap, logger) => {
         logger.error("请求超时");
         throw e;
       }
-      // 非网络超时类错误（token 失效 / 需要设备校验 / 密码错误等），
-      // 说明需要人工登录激活，记入失败提醒
+      // 区分失败原因：网络不通 vs 登录/账号问题
+      const msg = e.response
+        ? `HTTP ${e.response.statusCode}: ${e.response.body}`
+        : e.message || "未知错误";
+      const isNetwork = /ETIMEDOUT|ECONNREFUSED|ENOTFOUND|ECONNRESET|socket hang up|connect /i.test(msg);
       failedAccounts.push({
         userName,
-        reason: e.response
-          ? `HTTP ${e.response.statusCode}: ${e.response.body}`
-          : e.message || "未知错误",
+        reason: msg,
+        isNetwork,
       });
     } finally {
       logger.log(
@@ -119,13 +121,17 @@ async function main() {
     push("天翼云盘自动签到任务", logs + content);
     // 签到失败时，通过企业微信应用消息单独推送提醒（签到成功时不打扰）
     if (failedAccounts.length > 0) {
+      const allNetwork = failedAccounts.every((a) => a.isNetwork);
       const desp = failedAccounts
         .map((a) => `账号：${mask(a.userName, 3, 7)}\n原因：${a.reason}`)
         .join("\n\n");
-      await push.pushWecomApp(
-        "⚠️ 天翼云盘签到失败（登录失效），请手动激活",
-        `${desp}\n\n【排查步骤】\n1. 先检查 Secrets 里 TY_ACCOUNTS 的账号密码是否为最新（最近改过天翼云密码必须同步更新，否则脚本一直用旧密码登录）\n2. 密码没问题仍失败 = 天翼云风控拦截，请打开“天翼云盘 App”手动登录签到补上\n3. 手动登录后次日自动签到可能恢复；恢复前，每天收到提醒就手动签一次`
-      );
+      const title = allNetwork
+        ? "⚠️ 天翼云盘签到失败（网络不通）"
+        : "⚠️ 天翼云盘签到失败（登录失效）";
+      const advice = allNetwork
+        ? "\n\n【原因说明】GitHub 的机器连不上天翼云服务器（网络超时），不是账号问题。\n1. 请先打开“天翼云盘 App”手动签到，避免漏签\n2. 网络可能是暂时的，明天自动运行可能恢复\n3. 若连续多天失败，说明 GitHub 被天翼云拦截，需考虑换运行环境"
+        : "\n\n【解决方法】打开“天翼云盘 App”手动登录一次（完成验证码/设备校验），登录后自动签到恢复。\n若仍失败，检查 Secrets 里 TY_ACCOUNTS 的账号密码是否为最新。";
+      await push.pushWecomApp(title, `${desp}${advice}`);
     }
     recording.erase();
     cleanLogs();
