@@ -86,3 +86,23 @@ jobs:
           repository: ${{ github.repository }}
           retain_days: 0
           keep_minimum_runs: 50
+
+
+  heartbeat:
+    name: 上报成功心跳
+    needs: build-and-deploy
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Healthchecks
+        run: |
+          U="${{ vars.HC_PING_URL }}"
+          if [ -z "$U" ]; then
+            echo "[心跳] 未配置 HC_PING_URL，跳过"
+            exit 0
+          fi
+          if curl -fsS --max-time 15 --retry 2 "$U"; then
+            echo "[心跳] 已上报成功"
+          else
+            echo "[心跳] 上报失败（不影响签到结果）"
+          fi
