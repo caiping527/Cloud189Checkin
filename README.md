@@ -1,166 +1,133 @@
-# Cloud189Checkin
+# 天翼云盘签到（Cloud189Checkin）
 
-天翼网盘自动签到（随机容量），~~家庭空间签到（随机容量）~~。
+> 天翼网盘 每日自动签到，随机容量奖励。云端 GitHub Actions 跑，本机不用开机。
 
-# 重要说明！！！
+**仓库名说明**：GitHub 不支持中文仓库名（会被静默丢弃），所以仓库名是英文
+`Cloud189Checkin`。中文别名记在仓库描述里：**【天翼云盘签到】**。
 
-请勿直接修改 .env，然后提交到 github，源码仓库是公开的，别人可以直接看到你的账号密码。因为错误使用本仓库导致账号密码泄漏，并且在使用这个脚本出现账户异常情况，本人概不负责！！！
-如果遇到设备ID不存在，需要二次设备校验，请先参考[这个](https://github.com/wes-lin/Cloud189Checkin/issues/165)关闭自己的设备锁。
+---
 
+## 这个仓库是干什么的
 
-# **目录**
+每天自动登录天翼云盘完成签到，领取随机容量奖励。
 
-- [GitHub Action 运行](#GitHubAction运行)
-- [本地运行](#本地运行)
-- [设置推送](#设置推送)
-- [玄武-青龙面板](#玄武-青龙面板)
-- [其他环境集成](#其他环境集成)
-- [交流群](#交流群)
-- [更新内容](#更新内容)
+| 项目 | 说明 |
+|---|---|
+| 平台 | 天翼云盘（189.cn） |
+| 每日收益 | 随机容量 |
+| 运行方式 | GitHub Actions 每天自动，约北京 01:00 |
+| 本机要求 | 无。不用开机、不用开客户端 |
+| 上游来源 | 本项目基于开源项目 [wes-lin/Cloud189Checkin](https://github.com/wes-lin/Cloud189Checkin) 改造 |
 
-## GitHub Action 运行
+---
 
-### Fork 此仓库
+## 重要说明（本项目已与上游不同）
 
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/fork.png)
+> ⚠️ **上游 README 里写的「源码仓库是公开的，别人可以直接看到你的账号密码」
+> 在这里不适用。本仓库已设为 Private，不是公开的。**
 
-### 设置工作流权限
+但下面这条提醒依然有效，而且更重要：
 
-将 Settings -> Actions -> Workflow permissions 改成 Read and write permissions
-![](https://github.com/user-attachments/assets/28d27a78-73f2-489e-aa7e-cac87c0fc509)
+- **不要把真实账号密码提交进 `.env`**。仓库里那个 `.env` 是上游带来的**模板**，
+  里面 `TY_USERNAME_1` / `TY_PASSWORD_1` 都是占位符（`userName` / `password`），
+  不是真实账号。**不要去填它。**
+- 真实账号一律写在 `Settings → Secrets and variables → Actions`，
+  代码通过 `${{ secrets.XXX }}` 读取。
+- 仓库历史是永久的：一旦把密码提交上去，即使后来删了文件，commit 里还在。
 
-### 设置账号密码
+---
 
-新版本的 git Action 需要创建 environment 来配合使用，创建一个名为 user 的环境
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/env.png)
+## 运行时间
 
-方式一：编辑 user 环境，添加变量 TY_ACCOUNTS userName 和 password 为你的天翼账号和密码,可以添加多个账号如[{"userName":"账号 1","password":"账号 1 的密码"},{"userName":"账号 2","password":"账号 2 的密码"}]
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/accounts.jpg)
+| 北京时刻 | 动作 |
+|---|---|
+| 约 01:00 | 云端自动签到全部账号 |
 
-如果你遇到你账号密码中有特殊字符如#$等无法解析的[SyntaxError](https://github.com/wes-lin/Cloud189Checkin/issues/76),请在你的配置中将TY_ACCOUNTS用单引号包起来
-例如'[{"userName":"1234567890","password":"123334#$#$"}]'
+GitHub 定时任务会随机延迟（实测 5~6 小时），实际执行常落在
+01:00 ~ 07:00，属正常。
 
-方式二：如果你的账号有多个并且经常变动，推荐这个方式
-同样在 user 环境中添加变量，用户名环境变量TY_USERNAME_{index},账号密码环境变量TY_PASSWORD_{index},如添加第一个账号则是TY_USERNAME_1，第一个账号密码是TY_PASSWORD_1,第二个账号则是TY_USERNAME_2，第二个账号密码是TY_PASSWORD_2,以此类推。
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/account.png)
+---
 
-## 设置推送
+## 需要的 Secrets
 
-### Server 酱
+本仓库用 `secrets-to-env-action` 把 GitHub Secrets **一次性全部**注入成环境变量，
+所以 **Secret 的名字要和 `.env` 里的键名一致**：
 
-为了考虑到不同客户端兼容性,采用了 Server 酱,只需多配置下 SENDKEY
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/push.png)就行,Server 酱的配置和 sendkey 的获取可参看[Server 酱官网](https://sct.ftqq.com/)
+| 名称 | 用途 |
+|---|---|
+| `TY_USERNAME_1` | 第 1 个账号的手机号 / 用户名 |
+| `TY_PASSWORD_1` | 第 1 个账号的密码 |
+| `TY_USERNAME_2` / `TY_PASSWORD_2` | 第 2 个账号（多账号依次递增） |
+| `WECOM_BOT_KEY` | 企业微信机器人 Key（可选，用于推送） |
+| `PUSH_PLUS_TOKEN` | pushplus 推送（可选） |
+| `BARK_KEY` | Bark 推送（可选） |
 
-### TelegramBot 推送
+其余 `.env` 里出现的键（Telegram / WxPusher / ShowDoc 等）按需添加，
+不加就是不启用那个通道。
 
-- `TELEGRAM_BOT_TOKEN` _Telegram Bot Token_
-- `TELEGRAM_CHAT_ID` _Telegram 接收推送消息的会话 ID_
+**注意**：名字必须完全一样。写成 `TY_USERNAME`（少了 `_1`）不会被读到。
 
-### 微信群机器人推送
+---
 
-- `WECOM_BOT_KEY ` _微信群机器人 webhook_
-- `WECOM_BOT_TELPHONE ` _接收推送手机号_
-  [群机器人配置说明](https://developer.work.weixin.qq.com/document/path/91770)
+## 心跳监测
 
-### WxPusher 推送
+已纳入「自动心跳监测」，Healthchecks 里的名字是 `签到-天翼云盘`。
 
-- `WX_PUSHER_APP_TOKEN ` _WxPuser 推送 AppToken_
-- `WX_PUSHER_UID ` _接收推送 UID_
-  默认使用是我的 WxPusher,你也可以改成你自己 wxPusher 开发者账户,修改 WX_PUSHER_APP_TOKEN. 如果想直接使用我的 wxPush 应用,请扫描底下二维码进行关联.
-  https://wxpusher.zjiecode.com/api/qrcode/4Ix7noqD3L7DMBoSlvig3t4hqjFWzPkdHqAYsg8IzkPreW7d8uGUHi9LJO4EcyJg.jpg
-  然后拿到 UID 后,把 WX_PUSHER_UID 配成你拿到的 UID.
-  ![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/wxpusher.jpg)
+| 状态 | 含义 |
+|---|---|
+| `up` | 正常 |
+| `grace` | 等今天这一跑，宽限期内，**不是故障** |
+| `down` | 真没跑，去 Actions 补签 |
 
-### PushPlus 推送
+---
 
-- `PUSH_PLUS_TOKEN ` _pushPlus 推送 token_
-- 注册和获取 token：https://www.pushplus.plus/uc.html
-- 拿到 token 后，把 PUSH_PLUS_TOKEN 配成你拿到的 token.
-- 免费用户每天有 200 条推送额度
-
-
-### WPUSH 推送
-
-- `WPUSH_APIKEY ` _WPUSH 推送 API Key_
-- 注册和获取 API Key：https://wpush.cn/settings
-- 拿到 API Key 后，把 WPUSH_APIKEY 配成你拿到的 key.
-- `可选` `WPUSH_CHANNEL` 推送渠道，默认由服务端处理（常用 wechat）；支持 wechat / app / sms / mail / webhook / dingtalk / feishu / wechat_work / clawbot / qqbot 等
-- `可选` `WPUSH_TOPIC_CODE` Topic 广播编码；不填仅发送给自己
-- 官方文档：https://wpush.cn/docs
-
-### ShowDoc 推送
-
-- `SHOWDOC_KEY ` _ShowDoc 推送 key_
-- ShowDoc 官网：https://push.showdoc.com.cn
-- 打开官网，关注公众号，拿到 key 后，把 SHOWDOC_KEY 配成你拿到的 key
-- 使用简单、开箱可用、长期维护、持续免费、编程可玩、不限制消息数量、不限制请求数
-
-### Bark 推送 (仅支持 iPhone、iPad、M 芯片 Mac)
-
-- `BARK_KEY ` _Bark 推送 key_
-- Bark 官网：https://bark.day.app/
-- 安装 Bark app，开启通知权限，拿到 key 后，把 BARK_KEY 配成你拿到的 key
-- `可选` 支持自定义 server, 配置成 BARK_SERVER ，默认为官方通道 https://api.day.app
-- 免费、开源、轻量；使用苹果 APNS 服务，及时、稳定、可靠；不会消耗设备的电量，基于系统推送服务与推送扩展，app 本体并不需要运行；隐私安全，可以通过一些方式确保包含作者本人在内的所有人都无法窃取你的隐私
-
-### 执行任务
-
-1. 点击**Action**，再点击**I understand my workflows, go ahead and enable them**
-2. 给自己仓库点个 start 或者修改任意文件后提交一次或者手动点击运行
-   ![](http://tu.yaohuo.me/imgs/2020/06/34ca160c972b9927.png)
-3. 每天早上 10:35 点执行任务
-
-### 查看运行结果
-
-Actions > Cloud check in action > build
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/action.png)
-
-## 本地运行
-
-### 环境配置
+## 目录
 
 ```
-
-Node.js 18+
-
+.github/workflows/run.yml    云端定时任务（含心跳上报）
+src/                         签到逻辑
+accounts.js                  账号装配
+.env                         上游模板，不要填真实账号
+doc/                         上游文档
+image/                       上游截图
+package.json                 依赖清单
 ```
 
-### 克隆项目
+---
 
-```bash
-git clone https://github.com/wes-lin/Cloud189Checkin.git
-```
+## 排错
 
-```bash
-cd Cloud189Checkin
-```
+| 现象 | 原因 | 怎么办 |
+|---|---|---|
+| 提示「设备ID不存在」 | 天翼云盘设备锁 | 关闭设备锁后重试（见上游 issue #165） |
+| Actions 红叉 | 账号密码错 | 更新对应 Secret |
+| 随机容量为 0 | 当天已签到过 | 正常 |
+| 心跳 down | 当天没跑 | Actions → Run workflow 补签 |
 
-### 安装依赖
+---
 
-```bash
-npm install
-```
+## 安全
 
-### 运行
+- 账号密码只存 GitHub Secrets（加密），不进代码
+- 仓库私有，不出现在公开搜索
+- `.env` 保持模板原样，不填真实值
+- 停用：删对应 Secret，或 Disable workflow
 
-修改源码中.env 中环境变量
+---
 
-执行命令
+## 相关仓库
 
-```bash
-npm start
-```
+| 仓库 | 中文名 |
+|---|---|
+| `workbuddy-checkin-public` | WorkBuddy 签到 |
+| `raccoon-checkin` | 小浣熊签到 |
+| `qoder-checkin` | Qoder 签到 |
+| `chinafix-sign` | 迅维网签到 |
+| `hyperdown-checkin` | Hyperdown 签到 |
+| `checkin-watchdog` | 心跳告警中转 |
 
-## 玄武-青龙面板
+---
 
-### [教程](doc/xuanwu)
+## 许可
 
-## 其他环境集成
-
-我已经把天翼网盘的相关 API 集成到 [SDK](https://github.com/wes-lin/cloud189-sdk) 了，有编程能力的同学可以自行拓展，集成到自己的代码环境。
-
-## 交流群
-
-![](https://cdn.jsdelivr.net/gh/wes-lin/Cloud189Checkin/image/group.jpg)
-
-## [更新内容](https://github.com/wes-lin/Cloud189Checkin/wiki/更新内容)
+沿用上游 LICENSE。个人自用，不对外分发。
